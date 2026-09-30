@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Afinador Profissional Pro</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=JetBrains+Mono:wght@500;700;800&display=swap');
+        
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background-color: #0b0f19;
+            color: #f1f5f9;
+        }
+
+        .font-mono-num {
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        /* Gradiente do medidor analógico */
+        .gauge-bg {
+            background: linear-gradient(90deg, #f43f5e 0%, #eab308 35%, #10b981 50%, #eab308 65%, #f43f5e 100%);
+            opacity: 0.25;
+        }
+
+        /* Ponteiro/Agulha */
+        .gauge-needle {
+            transition: transform 0.08s cubic-bezier(0.1, 0.9, 0.2, 1), background-color 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .gauge-needle.tuned {
+            background-color: #10b981 !important;
+            box-shadow: 0 0 20px rgba(16, 185, 129, 0.9);
+        }
+
+        .string-card {
+            transition: all 0.2s ease;
+        }
+
+        .string-card.active {
+            background-color: #2563eb;
+            color: #ffffff;
+            border-color: #60a5fa;
+            transform: scale(1.03);
+            box-shadow: 0 0 15px rgba(37, 99, 235, 0.4);
+        }
+
+        .glow-emerald {
+            box-shadow: 0 0 20px rgba(16, 185, 129, 0.3);
+        }
+
+        select option {
+            background-color: #1e293b;
+            color: #f8fafc;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-3 sm:p-6 select-none">
+
+    <!-- Card Principal -->
+    <div class="bg-slate-900 p-5 sm:p-7 rounded-3xl shadow-2xl border border-slate-800 w-full max-w-md flex flex-col justify-between gap-5 min-h-[660px] relative overflow-hidden">
+        
+        <!-- Cabeçalho & Seletores -->
+        <div class="flex flex-col gap-3">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h1 class="text-2xl font-extrabold text-white tracking-tight flex items-center gap-2">
+                        <span>🎸</span> Afinador Pro
+                    </h1>
+                    <p class="text-xs text-slate-400">Precisão em Cents & Detecção YIN</p>
+                </div>
+                <!-- Status Dot -->
+                <div class="flex items-center gap-1.5 bg-slate-800 px-2.5 py-1 rounded-full border border-slate-700">
+                    <span id="status-dot" class="h-2.5 w-2.5 rounded-full bg-slate-600"></span>
+                    <span id="status-text" class="text-[11px] font-semibold text-slate-400">Desligado</span>
+                </div>
+            </div>
+
+            <!-- Controles de Instrumento e Modo Auto -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-1">
+                <!-- Dropdown de Instrumentos -->
+                <div>
+                    <label for="instrument-select" class="block text-[11px] font-semibold text-slate-400 mb-1 uppercase tracking-wider">Instrumento</label>
+                    <select id="instrument-select" class="w-full bg-slate-800 border border-slate-700 text-white font-bold rounded-xl py-2.5 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs sm:text-sm cursor-pointer">
+                        <option value="violao">🎸 Violão (6 Cordas)</option>
+                        <option value="cavaquinho">🪕 Cavaquinho (4 Cordas)</option>
+                        <option value="ukulele">🌺 Ukulele (4 Cordas)</option>
+                        <option value="banjo">🪕 Banjo (4 Cordas)</option>
+                        <option value="cromatico">🎵 Modo Cromático</option>
+                    </select>
+                </div>
+
+                <!-- Botão Liga/Desliga Modo Auto -->
+                <div>
+                    <label class="block text-[11px] font-semibold text-slate-400 mb-1 uppercase tracking-wider">Modo de Busca</label>
+                    <button id="toggle-auto-btn" class="w-full py-2.5 px-3 rounded-xl border text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 transition-all bg-blue-600/20 border-blue-500 text-blue-300 hover:bg-blue-600/30">
+                        <span id="auto-icon">🤖</span>
+                        <span id="auto-label">Modo Auto: ON</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Seção de Cordas do Instrumento -->
+        <div class="flex flex-col gap-2">
+            <div class="flex justify-between items-center px-1">
+                <span id="strings-title" class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Cordas do Instrumento</span>
+                <span id="string-count-badge" class="text-[10px] bg-slate-800 text-slate-300 font-mono font-bold px-2 py-0.5 rounded-full border border-slate-700">6 Cordas</span>
+            </div>
+            
+            <div id="strings-grid" class="grid grid-cols-3 gap-2">
+                <!-- Badges de Cordas gerados via JS -->
+            </div>
+        </div>
+
+        <!-- Visor Principal do Afinador -->
+        <div class="bg-slate-950 rounded-2xl p-4 text-center border border-slate-800 relative flex flex-col justify-between items-center shadow-inner gap-3">
+            
+            <!-- Leitura Numérica (Freq Captada, Nota, Freq Alvo e Cents) -->
+            <div class="w-full flex justify-between items-end px-2 font-mono-num">
+                <div class="text-left">
+                    <span class="block text-[10px] font-sans font-semibold text-slate-400 uppercase tracking-widest">Captado</span>
+                    <span id="freq-detected" class="text-2xl sm:text-3xl text-white font-extrabold">--</span>
+                    <span class="text-xs text-slate-500">Hz</span>
+                </div>
+
+                <!-- Nota Principal Detectada -->
+                <div class="text-center">
+                    <span id="note-detected" class="text-3xl sm:text-4xl font-black text-blue-400 tracking-tight">--</span>
+                    <span id="cents-label" class="block text-[11px] font-sans font-bold text-slate-400">0 Cents</span>
+                </div>
+
+                <div class="text-right">
+                    <span class="block text-[10px] font-sans font-semibold text-slate-400 uppercase tracking-widest">Alvo</span>
+                    <span id="freq-target" class="text-2xl sm:text-3xl text-blue-400 font-extrabold">82.4</span>
+                    <span class="text-xs text-slate-500">Hz</span>
+                </div>
+            </div>
+
+            <!-- Medidor Analógico (Gauge Cents -50 a +50) -->
+            <div class="w-full relative py-1">
+                <div class="w-full h-4 rounded-full bg-slate-800 overflow-hidden relative border border-slate-700">
+                    <div class="absolute inset-0 gauge-bg"></div>
+                    <!-- Linha Central (Zero Cents) -->
+                    <div class="absolute top-0 bottom-0 left-1/2 w-1 -ml-0.5 bg-white/90 z-10 shadow-[0_0_8px_rgba(255,255,255,0.9)]"></div>
+                </div>
+
+                <!-- Ponteiro / Agulha -->
+                <div id="gauge-indicator" class="absolute top-1/2 left-1/2 -mt-3.5 -ml-2.5 w-5 h-7 bg-blue-500 rounded-md border-2 border-white shadow-md z-20 gauge-needle"></div>
+            </div>
+
+            <!-- Barra de VU Meter (Volume de Entrada do Microfone) -->
+            <div class="w-full flex items-center gap-2 px-1">
+                <span class="text-[10px] font-semibold text-slate-500 uppercase">Sinal</span>
+                <div class="flex-1 h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                    <div id="vu-bar" class="h-full bg-emerald-500 transition-all duration-75 w-0"></div>
+                </div>
+            </div>
+
+            <!-- Mensagem de Ação Fixo (Evita pulos no layout) -->
+            <div class="h-12 w-full flex items-center justify-center text-center bg-slate-900/80 rounded-xl border border-slate-800/60 px-2">
+                <h2 id="action-text" class="text-sm sm:text-base font-extrabold text-slate-500 transition-colors duration-200 whitespace-nowrap">
+                    Ligue o microfone para iniciar
+                </h2>
+            </div>
+        </div>
+
+        <!-- Botão de Ligar/Desligar Microfone (Sempre funcional) -->
+        <button id="toggle-mic-btn" class="w-full py-3.5 rounded-xl text-base sm:text-lg font-extrabold transition-all duration-300 bg-emerald-600 hover:bg-emerald-500 active:scale-[0.98] text-white shadow-lg shadow-emerald-950/60 flex items-center justify-center gap-2">
+            <span id="mic-btn-icon">🎙️</span>
+            <span id="mic-btn-text">Ligar Microfone</span>
+        </button>
+
+    </div>
+
+    <script>
+        // Tabela de Notas Musicais
+        const NOTE_STRINGS = ["Dó", "Dó#", "Ré", "Ré#", "Mi", "Fá", "Fá#", "Sol", "Sol#", "Lá", "Lá#", "Si"];
+
+        // Dicionário de Instrumentos e Afinações Padrão
+        const INSTRUMENTS = {
+            violao: {
+                name: "Violão",
+                badgeText: "6 Cordas",
+                gridClass: "grid-cols-3",
+                strings: [
+                    { id: "E2", name: "Mizão (6ª)", freq: 82.41 },
+                    { id: "A2", name: "Lá (5ª)", freq: 110.00 },
+                    { id: "D3", name: "Ré (4ª)", freq: 146.83 },
+                    { id: "G3", name: "Sol (3ª)", freq: 196.00 },
+                    { id: "B3", name: "Si (2ª)", freq: 246.94 },
+                    { id: "E4", name: "Mizinha (1ª)", freq: 329.63 }
+                ]
+            },
+            cavaquinho: {
+                name: "Cavaquinho",
+                badgeText: "4 Cordas",
+                gridClass: "grid-cols-2 sm:grid-cols-4",
+                strings: [
+                    { id: "D4", name: "Ré (4ª)", freq: 293.66 },
+                    { id: "G4", name: "Sol (3ª)", freq: 392.00 },
+                    { id: "B4", name: "Si (2ª)", freq: 493.88 },
+                    { id: "D5", name: "Ré (1ª)", freq: 587.33 }
+                ]
+            },
+            ukulele: {
+                name: "Ukulele",
+                badgeText: "4 Cordas",
+                gridClass: "grid-cols-2 sm:grid-cols-4",
+                strings: [
+                    { id: "G4", name: "Sol (4ª)", freq: 392.00 },
+                    { id: "C4", name: "Dó (3ª)", freq: 261.63 },
+                    { id: "E4", name: "Mi (2ª)", freq: 329.63 },
+                    { id: "A4", name: "Lá (1ª)", freq: 440.00 }
+                ]
+            },
+            banjo: {
+                name: "Banjo",
+                badgeText: "4 Cordas",
+                gridClass: "grid-cols-2 sm:grid-cols-4",
+                strings: [
+                    { id: "D3", name: "Ré (4ª)", freq: 146.83 },
+                    { id: "G3", name: "Sol (3ª)", freq: 196.00 },
+                    { id: "B3", name: "Si (2ª)", freq: 246.94 },
+                    { id: "D4", name: "Ré (1ª)", freq: 293.66 }
+                ]
+            },
+            cromatico: {
+                name: "Cromático",
+                badgeText: "Livre",
+                gridClass: "grid-cols-1",
+                strings: []
+            }
+        };
+
+        // Estado da Aplicação
+        let currentInstrumentKey = "violao";
+        let currentTargetString = INSTRUMENTS.violao.strings[0];
+        let isAutoMode = true;
+        let isRecording = false;
+        let smoothedPitch = 0;
+
+        // Web Audio API Variables
+        let audioContext = null;
+        let analyser = null;
+        let mediaStreamSource = null;
+        let mediaStream = null;
+        let rafID = null;
+        let bufferLength = 0;
+        let dataArray = null;
+
+        // Elementos do DOM
+        const selectInstrument = document.getElementById('instrument-select');
+        const btnToggleAuto = document.getElementById('toggle-auto-btn');
+        const autoIcon = document.getElementById('auto-icon');
+        const autoLabel = document.getElementById('auto-label');
+        const stringsGrid = document.getElementById('strings-grid');
+        const stringsTitle = document.getElementById('strings-title');
+        const stringCountBadge = document.getElementById('string-count-badge');
+        
+        const txtFreqDetected = document.getElementById('freq-detected');
+        const txtNoteDetected = document.getElementById('note-detected');
+        const txtCentsLabel = document.getElementById('cents-label');
+        const txtFreqTarget = document.getElementById('freq-target');
+        const txtAction = document.getElementById('action-text');
+        
+        const gaugeIndicator = document.getElementById('gauge-indicator');
+        const vuBar = document.getElementById('vu-bar');
+        const btnMic = document.getElementById('toggle-mic-btn');
+        const micBtnIcon = document.getElementById('mic-btn-icon');
+        const micBtnText = document.getElementById('mic-btn-text');
+        const statusDot = document.getElementById('status-dot');
+        const statusText = document.getElementById('status-text');
+
+        // Renderiza as Cordas do Instrumento Ativo
+        function renderStringBadges() {
+            const currentInst = INSTRUMENTS[currentInstrumentKey];
+            
+            if (currentInstrumentKey === "cromatico") {
+                stringsTitle.innerText = "Modo Cromático Ativo";
+                stringCountBadge.innerText = "Notas Livres";
+                stringsGrid.className = "grid grid-cols-1 gap-2";
+                stringsGrid.innerHTML = `
+                    <div class="p-3 bg-slate-800/60 rounded-xl border border-slate-700/60 text-center text-xs text-slate-300">
+                        O afinador detectará automaticamente qualquer nota musical tocada.
+                    </div>
+                `;
+                txtFreqTarget.innerText = "--";
+                return;
+            }
+
+            stringsTitle.innerText = "Cordas do Instrumento";
+            stringsGrid.className = `grid ${currentInst.gridClass} gap-2`;
+            stringCountBadge.innerText = currentInst.badgeText;
+            stringsGrid.innerHTML = '';
+
+            currentInst.strings.forEach(str => {
+                const badge = document.createElement('button');
+                const isActive = str.id === currentTargetString.id;
+                
+                badge.className = `string-card p-2.5 rounded-xl border border-slate-700 bg-slate-800/80 text-slate-300 font-bold text-center flex flex-col items-center justify-center cursor-pointer ${isActive ? 'active' : ''}`;
+                badge.innerHTML = `
+                    <span class="text-xs sm:text-sm tracking-tight">${str.name}</span>
+                    <span class="text-[10px] font-mono opacity-75 font-normal">${str.id} • ${str.freq.toFixed(1)}Hz</span>
+                `;
+                
+                // Clique na corda: seleciona e ativa Modo Manual se estivesse em Auto
+                badge.onclick = () => {
+                    currentTargetString = str;
+                    if (isAutoMode) {
+                        toggleAutoMode(false); // Troca para manual para focar na corda clicada
+                    }
+                    renderStringBadges();
+                    resetVisuals();
+                };
+
+                stringsGrid.appendChild(badge);
+            });
+
+            txtFreqTarget.innerText = currentTargetString.freq.toFixed(1);
+        }
+
+        // Alterna entre Modo Automático e Modo Manual
+        function toggleAutoMode(forceState = null) {
+            isAutoMode = forceState !== null ? forceState : !isAutoMode;
+
+            if (isAutoMode) {
+                btnToggleAuto.className = "w-full py-2.5 px-3 rounded-xl border text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 transition-all bg-blue-600/20 border-blue-500 text-blue-300 hover:bg-blue-600/30";
+                autoIcon.innerText = "🤖";
+                autoLabel.innerText = "Modo Auto: ON";
+            } else {
+                btnToggleAuto.className = "w-full py-2.5 px-3 rounded-xl border text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 transition-all bg-amber-600/20 border-amber-500 text-amber-300 hover:bg-amber-600/30";
+                autoIcon.innerText = "🎯";
+                autoLabel.innerText = "Modo Auto: OFF";
+            }
+        }
+
+        // Troca de Instrumento
+        function handleInstrumentChange(newKey) {
+            currentInstrumentKey = newKey;
+            if (INSTRUMENTS[newKey].strings.length > 0) {
+                currentTargetString = INSTRUMENTS[newKey].strings[0];
+            }
+            renderStringBadges();
+            resetVisuals();
+        }
+
+        function resetVisuals() {
+            txtFreqDetected.innerText = "--";
+            txtNoteDetected.innerText = "--";
+            txtCentsLabel.innerText = "0 Cents";
+            gaugeIndicator.style.transform = `translateX(0px)`;
+            gaugeIndicator.classList.remove('tuned');
+            vuBar.style.width = '0%';
+            smoothedPitch = 0;
+            
+            if (isRecording) {
+                txtAction.innerText = isAutoMode ? "Toque qualquer corda..." : `Toque a corda ${currentTargetString.name}...`;
+                txtAction.className = "text-sm sm:text-base font-extrabold text-blue-400 whitespace-nowrap";
+            } else {
+                txtAction.innerText = "Ligue o microfone para iniciar";
+                txtAction.className = "text-sm sm:text-base font-extrabold text-slate-500 whitespace-nowrap";
+            }
+        }
+
+        // Algoritmo YIN para detecção precisa da Frequência Fundamental
+        function yinPitchDetection(buf, sampleRate) {
+            const SIZE = buf.length;
+            const halfSize = Math.floor(SIZE / 2);
+            
+            // 1. Cálculo RMS (Volume) para o VU Meter e Noise Gate
+            let rms = 0;
+            for (let i = 0; i < SIZE; i++) {
+                rms += buf[i] * buf[i];
+            }
+            rms = Math.sqrt(rms / SIZE);
+
+            // Atualiza barra de VU Meter
+            const vuPercent = Math.min(100, Math.max(0, rms * 400));
+            vuBar.style.width = `${vuPercent}%`;
+
+            // Corte de Silêncio (Noise Gate threshold)
+            if (rms < 0.003) return -1;
+
+            // 2. Função de Diferença
+            const yinBuffer = new Float32Array(halfSize);
+            for (let tau = 0; tau < halfSize; tau++) {
+                for (let i = 0; i < halfSize; i++) {
+                    const delta = buf[i] - buf[i + tau];
+                    yinBuffer[tau] += delta * delta;
+                }
+            }
+
+            // 3. Normalização Média Acumulada
+            yinBuffer[0] = 1;
+            let runningSum = 0;
+            for (let tau = 1; tau < halfSize; tau++) {
+                runningSum += yinBuffer[tau];
+                yinBuffer[tau] = (yinBuffer[tau] * tau) / runningSum;
+            }
+
+            // 4. Limiar Absoluto (Threshold = 0.15)
+            const threshold = 0.15;
+            let tauFound = -1;
+            for (let tau = 2; tau < halfSize; tau++) {
+                if (yinBuffer[tau] < threshold) {
+                    while (tau + 1 < halfSize && yinBuffer[tau + 1] < yinBuffer[tau]) {
+                        tau++;
+                    }
+                    tauFound = tau;
+                    break;
+                }
+            }
+
+            if (tauFound === -1) return -1;
+
+            // 5. Interpolação Parabólica para Decimais
+            let x0 = tauFound > 0 ? tauFound - 1 : tauFound;
+            let x2 = tauFound + 1 < halfSize ? tauFound + 1 : tauFound;
+            
+            let s0 = yinBuffer[x0];
+            let s1 = yinBuffer[tauFound];
+            let s2 = yinBuffer[x2];
+
+            let betterTau = tauFound;
+            const denom = 2 * s1 - s2 - s0;
+            if (denom !== 0) {
+                betterTau = tauFound + (s2 - s0) / (2 * denom);
+            }
+
+            return sampleRate / betterTau;
+        }
+
+        // Loop de Processamento em Tempo Real (~60 FPS)
+        function updatePitch() {
+            if (!isRecording) return;
+
+            analyser.getFloatTimeDomainData(dataArray);
+            const pitch = yinPitchDetection(dataArray, audioContext.sampleRate);
+
+            if (pitch === -1) {
+                resetVisuals();
+            } else {
+                // Suavização do ponteiro (Filtro Média Móvel Exponencial - EMA)
+                if (smoothedPitch === 0) smoothedPitch = pitch;
+                else smoothedPitch = smoothedPitch * 0.65 + pitch * 0.35;
+
+                processAudioFrame(smoothedPitch);
+            }
+
+            rafID = window.requestAnimationFrame(updatePitch);
+        }
+
+        // Processa a Frequência e Calcula Nota / Cents
+        function processAudioFrame(pitch) {
+            // Conversão de Frequência para Nota Musical MIDI
+            const noteNum = 12 * (Math.log2(pitch / 440)) + 69;
+            const roundedNote = Math.round(noteNum);
+            const noteIndex = (roundedNote % 12 + 12) % 12;
+            const octave = Math.floor(roundedNote / 12) - 1;
+            const noteName = NOTE_STRINGS[noteIndex] + octave;
+
+            txtFreqDetected.innerText = pitch.toFixed(1);
+            txtNoteDetected.innerText = noteName;
+
+            let targetFreq = 0;
+
+            // Lógica de Reconhecimento no Instrumento
+            if (currentInstrumentKey === "cromatico") {
+                // Modo Cromático: Calcula Frequência exata da nota mais próxima
+                targetFreq = 440 * Math.pow(2, (roundedNote - 69) / 12);
+                txtFreqTarget.innerText = targetFreq.toFixed(1);
+            } else {
+                const currentStrings = INSTRUMENTS[currentInstrumentKey].strings;
+
+                if (isAutoMode) {
+                    // Modo Auto: Encontra a corda mais próxima da nota tocada
+                    let closest = currentStrings[0];
+                    let minDiff = Math.abs(pitch - currentStrings[0].freq);
+
+                    for (let i = 1; i < currentStrings.length; i++) {
+                        let diff = Math.abs(pitch - currentStrings[i].freq);
+                        if (diff < minDiff) {
+                            minDiff = diff;
+                            closest = currentStrings[i];
+                        }
+                    }
+
+                    if (currentTargetString.id !== closest.id) {
+                        currentTargetString = closest;
+                        renderStringBadges();
+                    }
+                }
+                targetFreq = currentTargetString.freq;
+            }
+
+            // Cálculo dos Cents de Desvio (-50 a +50 cents)
+            const cents = Math.round(1200 * Math.log2(pitch / targetFreq));
+            txtCentsLabel.innerText = `${cents > 0 ? '+' : ''}${cents} Cents`;
+
+            // Mapeia Cents (-50 a +50) para deslocamento do Ponteiro (-75px a +75px)
+            const cappedCents = Math.max(-50, Math.min(50, cents));
+            const offsetPx = (cappedCents / 50) * 75;
+            gaugeIndicator.style.transform = `translateX(${offsetPx}px)`;
+
+            // Avaliação e Feedback
+            const TOLERANCE_CENTS = 4; // Margem de afinação em Cents
+
+            if (Math.abs(cents) <= TOLERANCE_CENTS) {
+                txtAction.innerText = "✅ AFINADO!";
+                txtAction.className = "text-base sm:text-lg font-black text-emerald-400 whitespace-nowrap glow-emerald";
+                gaugeIndicator.classList.add('tuned');
+            } else if (cents < 0) {
+                txtAction.innerText = "⚠️ Muito grave: APERTE A CORDA";
+                txtAction.className = "text-base sm:text-lg font-extrabold text-amber-400 whitespace-nowrap";
+                gaugeIndicator.classList.remove('tuned');
+            } else {
+                txtAction.innerText = "⚠️ Muito agudo: SOLTE A CORDA";
+                txtAction.className = "text-base sm:text-lg font-extrabold text-rose-500 whitespace-nowrap";
+                gaugeIndicator.classList.remove('tuned');
+            }
+        }
+
+        // Ligar e Desligar Microfone
+        async function toggleAudio() {
+            if (isRecording) {
+                // Desligar Microfone
+                isRecording = false;
+                if (rafID) window.cancelAnimationFrame(rafID);
+                if (audioContext) await audioContext.close();
+                if (mediaStream) mediaStream.getTracks().forEach(t => t.stop());
+
+                micBtnIcon.innerText = "🎙️";
+                micBtnText.innerText = "Ligar Microfone";
+                btnMic.className = "w-full py-3.5 rounded-xl text-base sm:text-lg font-extrabold transition-all duration-300 bg-emerald-600 hover:bg-emerald-500 active:scale-[0.98] text-white shadow-lg shadow-emerald-950/60 flex items-center justify-center gap-2";
+
+                statusDot.className = "h-2.5 w-2.5 rounded-full bg-slate-600";
+                statusText.innerText = "Desligado";
+                
+                resetVisuals();
+                return;
+            }
+
+            // Ligar Microfone
+            try {
+                mediaStream = await navigator.mediaDevices.getUserMedia({ 
+                    audio: {
+                        echoCancellation: false,
+                        noiseSuppression: false,
+                        autoGainControl: true
+                    } 
+                });
+                
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                analyser = audioContext.createAnalyser();
+                
+                // Tamanho do FFT maior (4096) para boa resolução de notas graves (Ex: Baixo / Mizão E2)
+                analyser.fftSize = 4096; 
+                bufferLength = analyser.fftSize;
+                dataArray = new Float32Array(bufferLength);
+                
+                mediaStreamSource = audioContext.createMediaStreamSource(mediaStream);
+                mediaStreamSource.connect(analyser);
+                
+                isRecording = true;
+                
+                micBtnIcon.innerText = "⏹️";
+                micBtnText.innerText = "Desligar Microfone";
+                btnMic.className = "w-full py-3.5 rounded-xl text-base sm:text-lg font-extrabold transition-all duration-300 bg-rose-600 hover:bg-rose-500 active:scale-[0.98] text-white shadow-lg shadow-rose-950/60 flex items-center justify-center gap-2";
+
+                statusDot.className = "h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse";
+                statusText.innerText = "Escutando";
+                
+                resetVisuals();
+                updatePitch();
+
+            } catch (err) {
+                console.error("Erro ao acessar microfone:", err);
+                txtAction.innerText = "❌ Permissão de microfone negada";
+                txtAction.className = "text-sm font-bold text-rose-500 whitespace-nowrap";
+            }
+        }
+
+        // Event Listeners
+        selectInstrument.addEventListener('change', (e) => handleInstrumentChange(e.target.value));
+        btnToggleAuto.addEventListener('click', () => toggleAutoMode());
+        btnMic.addEventListener('click', toggleAudio);
+
+        // Inicialização do App
+        renderStringBadges();
+        resetVisuals();
+    </script>
+</body>
+</html>
